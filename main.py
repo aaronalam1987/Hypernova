@@ -3,7 +3,7 @@ import time
 import random
 import starField
 import ExtractSprite
-
+from assets import sounds, BGM
 import math
 
 pygame.init()
@@ -23,6 +23,8 @@ currHeight = display_size.get_height()
 xBound = currWidth - 64
 yBound = currHeight - 64
 
+run_game = 1
+
 # Load player ship sprites =
 player_ship = ExtractSprite.ExtractSprite(
     pygame.image.load('Resources/Sprites/PlayerShip.png').convert_alpha())
@@ -34,6 +36,15 @@ enemy01 = ExtractSprite.ExtractSprite(
 enemy02 = ExtractSprite.ExtractSprite(
     pygame.image.load('Resources/Sprites/Enemy02.png').convert_alpha())
 
+enemy03 = ExtractSprite.ExtractSprite(
+    pygame.image.load('Resources/Sprites/Enemy03.png').convert_alpha())
+
+enemy04 = ExtractSprite.ExtractSprite(
+    pygame.image.load('Resources/Sprites/Enemy04.png').convert_alpha())
+
+enemy05 = ExtractSprite.ExtractSprite(
+    pygame.image.load('Resources/Sprites/Enemy05.png').convert_alpha())
+
 explosionimg = pygame.image.load(
     'Resources/Sprites/Explosion.png').convert_alpha()
 
@@ -44,16 +55,8 @@ enemy_protectile = []
 # Enemy list
 enemies = []
 
-# Load sounds
-laser = pygame.mixer.Sound("Resources/Sounds/LaserShoot01.wav")
-explosion = pygame.mixer.Sound("Resources/Sounds/Explosion01.wav")
-player_hit = pygame.mixer.Sound("Resources/Sounds/PlayerHit.wav")
-upgrade = pygame.mixer.Sound("Resources/Sounds/Upgrade.wav")
-weapon_up = pygame.mixer.Sound("Resources/Sounds/WeaponUp.wav")
-
 # Play BGM
-pygame.mixer.init()
-pygame.mixer.music.load("Resources/Sounds/bgm.mp3")
+pygame.mixer.music.load(BGM)
 pygame.mixer.music.set_volume(0.3)
 pygame.mixer.music.play(0, 0)
 
@@ -81,13 +84,17 @@ init_time = pygame.time.get_ticks()
 # Game time duration
 anim_duration = 100  # (ms)
 
-# Player start position
+# Player start position, start far left and centre to screen 
 x = 0
 y = (DISPLAY_HEIGHT - 64) / 2
 
 # Sprite frames
 player_frame_list = []
 enemy01_frame_list = []
+enemy02_frame_list = []
+enemy03_frame_list = []
+enemy04_frame_list = []
+enemy05_frame_list = []
 number_frames = 3
 bullet_speed = 250
 curr_frame = 0
@@ -103,6 +110,10 @@ for x in range(number_frames):
     # Loop through number of frames and add to frame list
     player_frame_list.append(player_ship.extract_sprite(x))
     enemy01_frame_list.append(enemy01.extract_sprite(x))
+    enemy02_frame_list.append(enemy02.extract_sprite(x))
+    enemy03_frame_list.append(enemy03.extract_sprite(x))
+    enemy04_frame_list.append(enemy04.extract_sprite(x))
+    enemy05_frame_list.append(enemy05.extract_sprite(x))
 
 add_enemy = pygame.USEREVENT
 pygame.time.set_timer(add_enemy, 2000)
@@ -116,7 +127,8 @@ def play_sound(src):
 def draw_enemy():
     y = random.randrange(64, 704)
     new_enemy = pygame.Rect(1000, y, 20, 20)
-    enemies.append(new_enemy)
+    enemy_type = random.choice([1, 2, 3, 4, 5])
+    enemies.append((new_enemy, enemy_type))
 
 
 def check_keys():
@@ -141,7 +153,7 @@ def check_keys():
                 pygame.mixer.Sound.stop
                 bullet = pygame.Rect(x + 64, y, 20, 20)
                 projectile.append(bullet)
-                pygame.mixer.Sound.play(laser)
+                pygame.mixer.Sound.play(sounds["laser"])
 
 
 def animate(current_time):
@@ -175,19 +187,25 @@ def doprojectile():
 
 def check_score():
     global num_bullets
-    if score == 10:
-        pygame.mixer.Sound.stop
-        pygame.mixer.Sound.play(upgrade)
-        num_bullets += 2
+    match score:
+        case 10:
+            num_bullets +=2
+            pygame.mixer.Sound.stop
+            pygame.mixer.Sound.play(sounds["upgrade"])
+        case 20:
+            num_bullets +=2
+            pygame.mixer.Sound.stop
+            pygame.mixer.Sound.play(sounds["upgrade"])    
 
 
 def check_enemies():
     global score
     global playsound
     global p_health
+    global enemy_speed
     enemyhit = 0
     # Enemy list
-    for do_enemy in enemies[:]:
+    for do_enemy, enemy_type in enemies[:]:
         # Check if list contains anything
         if len(enemies) > 0:
             for check_projectile in projectile[:]:
@@ -195,16 +213,28 @@ def check_enemies():
                 if do_enemy.colliderect(check_projectile):
                     display_area.blit(
                         explosionimg, (do_enemy[0], do_enemy[1]+10))
-                    enemies.remove(do_enemy)
+                    enemies.remove((do_enemy, enemy_type))
                     score += 1
-                    play_sound(explosion)
+                    play_sound(sounds["explosion"])
                     check_score()
+                    if score > 10:
+                        if len(enemies) <= 3: 
+                            draw_enemy()
             # Enemy is off screen so remove from list
             if do_enemy[0] <= -64:
-                enemies.remove(do_enemy)
+                enemies.remove((do_enemy, enemy_type))
             # Draw enemies
-            display_area.blit(enemy01_frame_list[curr_frame],
-                              (do_enemy[0], do_enemy[1]))
+            match enemy_type:
+                case 1:
+                    display_area.blit(enemy01_frame_list[curr_frame], (do_enemy[0], do_enemy[1]))
+                case 2:
+                    display_area.blit(enemy02_frame_list[curr_frame], (do_enemy[0], do_enemy[1]))
+                case 3:
+                    display_area.blit(enemy03_frame_list[curr_frame], (do_enemy[0], do_enemy[1]))
+                case 4:
+                    display_area.blit(enemy04_frame_list[curr_frame], (do_enemy[0], do_enemy[1]))
+                case 5:
+                    display_area.blit(enemy05_frame_list[curr_frame], (do_enemy[0], do_enemy[1]))
             # Move enemy across x, towards player.
             do_enemy[0] -= enemy_speed
             # Move enemy towards player
@@ -214,50 +244,86 @@ def check_enemies():
                 do_enemy[1] -= 2
             # Enemy collided with player sprite.
             if do_enemy.colliderect(player_rect):
-                display_area.blit(
-                    explosionimg, (do_enemy[0], do_enemy[1]+10))
-                enemies.remove(do_enemy)
-                play_sound(player_hit)
-                p_health -= 10
+                match enemy_type:
+                    case 5:
+                        p_health += 10
+                        display_area.blit(explosionimg, (do_enemy[0], do_enemy[1]+10))
+                        enemies.remove((do_enemy, enemy_type))
+                        play_sound(sounds["upgrade"])
+                    case _:
+                        display_area.blit(explosionimg, (do_enemy[0], do_enemy[1]+10))
+                        enemies.remove((do_enemy, enemy_type))
+                        play_sound(sounds["player_hit"])
+                        p_health -= 10
+
+
+def game_state():
+    global p_health
+    global run_game
+    global score
+    global bullet_speed
+    global x
+    global y
+    if p_health == 0:
+        text = font.render('GAME OVER', False, (255, 255, 255))
+        display_area.blit(text, (350, 300))
+        text = font.render('PRESS SPACE TO RESTART', False, (255, 255, 255))
+        display_area.blit(text, (350, 400))
+        run_game = 0
+
+    if run_game == 0:
+        key_press = pygame.key.get_pressed()
+        if key_press[pygame.K_SPACE]:
+            p_health = 100
+            score = 0
+            bullet_speed = 0
+            run_game = 1
+            x = 0
+            y = (DISPLAY_HEIGHT - 64) / 2
 
 
 running = True
 while running:
-    player_rect = pygame.Rect(x, y, 32, 32)
+    game_state()
 
-    # Get current time, used for animation frames / starfield
-    current_time = pygame.time.get_ticks()
-    sound_time = pygame.time.get_ticks()
-    # Check for keypress to move player position
-    check_keys()
-    # Animates sprites/starfield
-    animate(current_time)
+    if run_game == 1:
+        player_rect = pygame.Rect(x, y, 32, 32)
 
-    # Draw starfield and player
-    display_area.fill((0, 0, 0))
-    display_area.blit(star_field, (0, 0))
-    display_area.blit(player_frame_list[curr_frame], (x, y))
+        # Get current time, used for animation frames / starfield
+        current_time = pygame.time.get_ticks()
+        sound_time = pygame.time.get_ticks()
+        # Check for keypress to move player position
+        check_keys()
+        # Animates sprites/starfield
+        animate(current_time)
 
-    text = font.render('Score:  ' + str(score),
-                       False, (255, 255, 255))
-    display_area.blit(text, (10, 0))
+        # Draw starfield and player
+        display_area.fill((0, 0, 0))
+        display_area.blit(star_field, (0, 0))
+        display_area.blit(player_frame_list[curr_frame], (x, y))
 
-    text = font.render('Health:  ' + str(p_health),
-                       False, (255, 255, 255))
-    text_rect = text.get_rect(center=(DISPLAY_WIDTH/2, 20))
-    display_area.blit(text, text_rect)
+        text = font.render('Score:  ' + str(score),
+                           False, (255, 255, 255))
+        display_area.blit(text, (10, 0))
 
-    # Do bullets etc.
-    doprojectile()
-    # Check and draw enemies
-    check_enemies()
+        text = font.render('Health:  ' + str(p_health),
+                           False, (255, 255, 255))
+        text_rect = text.get_rect(center=(DISPLAY_WIDTH/2, 20))
+        display_area.blit(text, text_rect)
+
+        # Do bullets etc.
+        doprojectile()
+        # Check and draw enemies
+        check_enemies()
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == add_enemy:
+        if event.type == add_enemy and run_game == 1:
             draw_enemy()
+
     clock = pygame.time.Clock()
     clock.tick(60)
     pygame.display.update()
+
 pygame.quit()
